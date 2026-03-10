@@ -1,0 +1,240 @@
+name: 'Claude Code Review'
+description: 'AI-powered code review using Claude. Handles diff capture, re-review reconciliation, cost tracking, and configurable review authority.'
+author: 'toriihq'
+
+branding:
+  icon: 'eye'
+  color: 'purple'
+
+inputs:
+  # Required
+  anthropic-api-key:
+    description: 'Anthropic API key'
+    required: true
+
+  # Review Content
+  review-guide-path:
+    description: 'Path to repo review guide markdown. Empty = no guide.'
+    required: false
+    default: ''
+  critical-rules:
+    description: 'Multiline string of BLOCKER-level rules injected into prompt'
+    required: false
+    default: ''
+  extra-prompt:
+    description: 'Appended to end of prompt (custom instructions)'
+    required: false
+    default: ''
+  include-pr-description:
+    description: 'Feed PR title+body into review prompt'
+    required: false
+    default: 'true'
+  context-intro:
+    description: 'Opening line of prompt (repo identity/context)'
+    required: false
+    default: 'You are a code reviewer.'
+
+  # Limits
+  max-files:
+    description: 'Skip review if PR exceeds this many files'
+    required: false
+    default: '50'
+  max-diff-lines:
+    description: 'Truncate diff after N lines'
+    required: false
+    default: '3000'
+  max-diff-bytes:
+    description: 'Truncate diff after N bytes'
+    required: false
+    default: '80000'
+  max-turns:
+    description: 'Claude conversation turn limit'
+    required: false
+    default: '30'
+  timeout-minutes:
+    description: 'Job timeout (informational — consumer workflow controls actual timeout)'
+    required: false
+    default: '20'
+
+  # Model & Tools
+  model:
+    description: 'Claude model to use'
+    required: false
+    default: 'claude-sonnet-4-6'
+  allowed-tools:
+    description: 'Tools Claude can use during review'
+    required: false
+    default: 'Bash,Read,Write,Grep,Glob'
+
+  # Review Authority
+  review-authority:
+    description: 'Review authority level: comment-only, request-changes, or full'
+    required: false
+    default: 'request-changes'
+  approve-threshold:
+    description: 'For full mode: strict (zero MEDIUM+) or normal (zero HIGH+)'
+    required: false
+    default: 'strict'
+  approve-max-files:
+    description: 'For full mode: only approve PRs with <= N files'
+    required: false
+    default: '50'
+
+  # Triggers
+  review-label:
+    description: 'Label name passed to claude-code-action label_trigger. Must match consumer workflow if: condition.'
+    required: false
+    default: 'claude-review'
+  trigger-phrase:
+    description: 'Comment trigger phrase (used to exclude trigger comments from author feedback)'
+    required: false
+    default: '@claude'
+  default-branch:
+    description: 'Base branch for guide fetch. Empty = auto-detect from repo settings.'
+    required: false
+    default: ''
+
+  # Behavior
+  skip-if-already-reviewed:
+    description: 'Skip on label trigger if no new commits since last review'
+    required: false
+    default: 'true'
+  include-previous-review:
+    description: 'Enable re-review reconciliation with previous findings'
+    required: false
+    default: 'true'
+  track-cost:
+    description: 'Append cost/turns/model to review comment'
+    required: false
+    default: 'true'
+  dismiss-previous-reviews:
+    description: 'Dismiss old Claude reviews before posting new one'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Resolve PR
+      id: resolve-pr
+      shell: bash
+      run: bash ${{ github.action_path }}/scripts/resolve-pr.sh
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        EVENT_NAME: ${{ github.event_name }}
+        EVENT_JSON: ${{ toJSON(github.event) }}
+
+    - name: Checkout PR
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ steps.resolve-pr.outputs.pr_sha }}
+        fetch-depth: 1
+
+    - name: Fetch review guide
+      if: inputs.review-guide-path != ''
+      id: fetch-guide
+      shell: bash
+      run: bash ${{ github.action_path }}/scripts/fetch-guide.sh
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        GUIDE_PATH: ${{ inputs.review-guide-path }}
+        DEFAULT_BRANCH: ${{ inputs.default-branch }}
+
+    - name: Capture context
+      id: capture-context
+      shell: bash
+      run: bash ${{ github.action_path }}/scripts/capture-context.sh
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ steps.resolve-pr.outputs.pr_number }}
+        MAX_FILES: ${{ inputs.max-files }}
+        MAX_DIFF_LINES: ${{ inputs.max-diff-lines }}
+        MAX_DIFF_BYTES: ${{ inputs.max-diff-bytes }}
+        INCLUDE_PR_DESCRIPTION: ${{ inputs.include-pr-description }}
+
+    - name: Detect previous review
+      id: detect-previous
+      shell: bash
+      run: bash ${{ github.action_path }}/scripts/detect-previous.sh
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ steps.resolve-pr.outputs.pr_number }}
+        EVENT_TYPE: ${{ steps.resolve-pr.outputs.event_type }}
+        SKIP_IF_ALREADY_REVIEWED: ${{ inputs.skip-if-already-reviewed }}
+
+    - name: Fetch author comments
+      if: steps.detect-previous.outputs.has_previous == 'true' && inputs.include-previous-review == 'true'
+      id: fetch-comments
+      shell: bash
+      run: bash ${{ github.action_path }}/scripts/fetch-comments.sh
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ steps.resolve-pr.outputs.pr_number }}
+        LAST_REVIEW_DATE: ${{ steps.detect-previous.outputs.last_review_date }}
+        TRIGGER_PHRASE: ${{ inputs.trigger-phrase }}
+
+    - name: Build prompt
+      id: build-prompt
+      shell: bash
+      run: bash ${{ github.action_path }}/scripts/build-prompt.sh
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ steps.resolve-pr.outputs.pr_number }}
+        EVENT_TYPE: ${{ steps.resolve-pr.outputs.event_type }}
+        USER_COMMENT: ${{ steps.resolve-pr.outputs.user_comment }}
+        HAS_PREVIOUS: ${{ steps.detect-previous.outputs.has_previous }}
+        NEW_COMMITS: ${{ steps.detect-previous.outputs.commits }}
+        INCLUDE_PREVIOUS_REVIEW: ${{ inputs.include-previous-review }}
+        CONTEXT_INTRO: ${{ inputs.context-intro }}
+        CRITICAL_RULES: ${{ inputs.critical-rules }}
+        EXTRA_PROMPT: ${{ inputs.extra-prompt }}
+        REVIEW_AUTHORITY: ${{ inputs.review-authority }}
+        APPROVE_THRESHOLD: ${{ inputs.approve-threshold }}
+        APPROVE_MAX_FILES: ${{ inputs.approve-max-files }}
+        DISMISS_PREVIOUS_REVIEWS: ${{ inputs.dismiss-previous-reviews }}
+        FILE_COUNT: ${{ steps.capture-context.outputs.file_count }}
+
+    - name: Run Claude Code Review
+      id: claude-review
+      continue-on-error: true
+      uses: anthropics/claude-code-action@v1
+      with:
+        anthropic_api_key: ${{ inputs.anthropic-api-key }}
+        allowed_bots: ''
+        track_progress: false
+        show_full_output: true
+        label_trigger: ${{ inputs.review-label }}
+        prompt: ${{ steps.build-prompt.outputs.prompt }}
+        claude_args: |
+          --max-turns ${{ inputs.max-turns }}
+          --model ${{ inputs.model }}
+          --allowedTools "${{ inputs.allowed-tools }}"
+
+    - name: Post failure comment
+      if: steps.claude-review.outcome == 'failure'
+      shell: bash
+      run: bash ${{ github.action_path }}/scripts/post-failure.sh
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ steps.resolve-pr.outputs.pr_number }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        MAX_TURNS: ${{ inputs.max-turns }}
+        TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+
+    - name: Report cost
+      if: always() && inputs.track-cost == 'true'
+      shell: bash
+      run: bash ${{ github.action_path }}/scripts/report-cost.sh
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ steps.resolve-pr.outputs.pr_number }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        CLAUDE_OUTCOME: ${{ steps.claude-review.outcome }}

@@ -62,11 +62,11 @@ jobs:
 
 ### Want `@claude` comment triggers too?
 
-Use the [standard example](examples/standard.yml) instead — it adds support for `@claude` comments on PRs and inline review comment triggers, plus concurrency control.
+Use the [standard example](examples/standard.yml) instead — it adds support for `@claude` in PR comments and inline review comments, plus concurrency control.
 
 ## Features
 
-- **3 trigger types** — Label (`claude-review`), `@claude` comment, inline review comment
+- **3 trigger types** — Label (`claude-review`), `@claude` in PR comments, `@claude` in inline review comments
 - **Re-review reconciliation** — Tracks previous findings, author responses, and new commits
 - **Relevant commit filtering** — Only flags commits that contribute real changes vs base
 - **Configurable review authority** — Comment-only, request-changes, or full (with auto-approve)

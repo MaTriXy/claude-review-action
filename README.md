@@ -117,7 +117,7 @@ See the [example review guide](examples/claude-review-guide.md) for a template b
 
 ## Features
 
-- **3 trigger types** — Label (`claude-review`), `@claude` in PR comments, `@claude` in inline review comments
+- **3 trigger types** — Label (`claude-review`), `@claude` in PR comments, `@claude` in inline review comments (response appears as a PR review, not an inline reply — a `claude-code-action` limitation)
 - **Re-review reconciliation** — Tracks previous findings, author responses, and new commits
 - **Relevant commit filtering** — Only flags commits that contribute real changes vs base
 - **Configurable review authority** — Comment-only, request-changes, or full (with auto-approve)

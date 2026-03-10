@@ -1,6 +1,12 @@
-# Claude Code Review Action
+<p align="center">
+  <img src="claude-icon.png" alt="Claude" width="80">
+</p>
 
-AI-powered code review using Claude. A reusable GitHub Composite Action that handles diff capture, re-review reconciliation, cost tracking, and configurable review authority.
+<h1 align="center">Claude Code Review Action</h1>
+
+<p align="center">
+  AI-powered code review using Claude. A reusable GitHub Composite Action that handles diff capture, re-review reconciliation, cost tracking, and configurable review authority.
+</p>
 
 ## Setup
 

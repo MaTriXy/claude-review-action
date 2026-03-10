@@ -186,9 +186,9 @@ fi
 
 # --- Export prompt as GitHub Actions output ---
 {
-  echo 'prompt<<__GHA_OUTPUT_EOF__'
+  echo "prompt<<EOF_PROMPT_${GITHUB_RUN_ID}"
   cat "$PROMPT_FILE"
-  echo '__GHA_OUTPUT_EOF__'
+  echo "EOF_PROMPT_${GITHUB_RUN_ID}"
 } >> "$GITHUB_OUTPUT"
 
 echo "::notice::Prompt assembled ($(wc -c < "$PROMPT_FILE" | tr -d ' ') bytes)"

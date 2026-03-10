@@ -70,8 +70,8 @@ for SHA in $NEW_SHAS; do
   [ -z "$COMMIT_FILES" ] && continue
 
   # If any file from this commit differs between base and HEAD, the commit is relevant
-  # shellcheck disable=SC2086
-  if ! git diff --quiet "origin/${BASE_BRANCH}" HEAD -- $COMMIT_FILES 2>/dev/null; then
+  mapfile -t FILES <<< "$COMMIT_FILES"
+  if ! git diff --quiet "origin/${BASE_BRANCH}" HEAD -- "${FILES[@]}" 2>/dev/null; then
     SHORT_SHA="${SHA:0:7}"
     MSG=$(echo "$COMMIT_JSON" | jq -r '.commit.message | split("\n") | .[0]')
     RELEVANT_COMMITS="${RELEVANT_COMMITS}${SHORT_SHA} ${MSG}\n"
@@ -82,9 +82,9 @@ NEW_COMMITS=$(printf '%b' "$RELEVANT_COMMITS" | sed '/^$/d')
 
 if [ -n "$NEW_COMMITS" ]; then
   {
-    echo 'commits<<__GHA_COMMITS_EOF__'
+    echo "commits<<EOF_COMMITS_${GITHUB_RUN_ID}"
     echo "$NEW_COMMITS"
-    echo '__GHA_COMMITS_EOF__'
+    echo "EOF_COMMITS_${GITHUB_RUN_ID}"
   } >> "$GITHUB_OUTPUT"
 else
   echo "::notice::New commits found but none contribute to PR diff (likely merge/CI-only)"

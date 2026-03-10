@@ -54,6 +54,8 @@ MSG
 )"
   echo "::error::ANTHROPIC_API_KEY is invalid (HTTP $HTTP_STATUS). Check that the secret value is correct."
   exit 1
+elif [ "$HTTP_STATUS" != "200" ] && [ "$HTTP_STATUS" != "400" ]; then
+  echo "::warning::Anthropic API returned HTTP $HTTP_STATUS during key validation — proceeding anyway"
 fi
 
 echo "::notice::Input validation passed"

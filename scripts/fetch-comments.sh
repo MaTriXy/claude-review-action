@@ -10,18 +10,20 @@ PR_AUTHOR=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json author --jq '.author.l
 
 # Build jq filter — exclude trigger phrase comments if phrase is non-empty
 if [ -n "$TRIGGER_PHRASE" ]; then
-  TRIGGER_FILTER="and (.body | test(\"${TRIGGER_PHRASE}\") | not)"
+  TRIGGER_FILTER="and (.body | test(\$trigger) | not)"
 else
   TRIGGER_FILTER=""
 fi
 
 # Fetch PR-level comments by author since last review
 PR_COMMENTS=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
-  --jq "[.[] | select(.user.login == \"${PR_AUTHOR}\" and .created_at > \"${LAST_REVIEW_DATE}\" ${TRIGGER_FILTER})] | map(\"**@\" + .user.login + \"** (\" + .created_at + \"):\\n\" + .body) | join(\"\\n\\n---\\n\\n\")" 2>/dev/null || echo "")
+  --jq --arg author "$PR_AUTHOR" --arg since "$LAST_REVIEW_DATE" --arg trigger "$TRIGGER_PHRASE" \
+  "[.[] | select(.user.login == \$author and .created_at > \$since ${TRIGGER_FILTER})] | map(\"**@\" + .user.login + \"** (\" + .created_at + \"):\\n\" + .body) | join(\"\\n\\n---\\n\\n\")" 2>/dev/null || echo "")
 
 # Fetch inline review comments by author since last review
 INLINE_COMMENTS=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/comments" \
-  --jq "[.[] | select(.user.login == \"${PR_AUTHOR}\" and .created_at > \"${LAST_REVIEW_DATE}\")] | map(\"**@\" + .user.login + \"** on \`\" + .path + \":\" + (.line // .original_line // \"?\" | tostring) + \"\` (\" + .created_at + \"):\\n\" + .body) | join(\"\\n\\n---\\n\\n\")" 2>/dev/null || echo "")
+  --jq --arg author "$PR_AUTHOR" --arg since "$LAST_REVIEW_DATE" \
+  "[.[] | select(.user.login == \$author and .created_at > \$since)] | map(\"**@\" + .user.login + \"** on \`\" + .path + \":\" + (.line // .original_line // \"?\" | tostring) + \"\` (\" + .created_at + \"):\\n\" + .body) | join(\"\\n\\n---\\n\\n\")" 2>/dev/null || echo "")
 
 # Write to file
 : > /tmp/author-comments.txt

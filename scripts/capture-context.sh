@@ -14,7 +14,8 @@ if [ "$FILE_COUNT" -gt "$MAX_FILES" ]; then
   gh pr comment "$PR_NUMBER" --repo "$REPO" \
     --body "⚠️ PR too large for automated review ($FILE_COUNT files, limit: $MAX_FILES). Please split into smaller PRs or review manually." || true
   echo "::notice::Review skipped — PR has $FILE_COUNT files (limit: $MAX_FILES)"
-  exit 1
+  echo "skipped=true" >> "$GITHUB_OUTPUT"
+  exit 0
 fi
 
 # --- Capture diff ---

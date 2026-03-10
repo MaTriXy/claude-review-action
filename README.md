@@ -64,6 +64,57 @@ jobs:
 
 Use the [standard example](examples/standard.yml) instead — it adds support for `@claude` in PR comments and inline review comments, plus concurrency control.
 
+## Customize for Your Repo
+
+The action works out of the box, but reviews are significantly better when you tell Claude about your project. There are three levels of customization — use whichever combination fits your needs.
+
+### 1. `context-intro` — Tell Claude what it's reviewing
+
+This is the opening line of every review prompt. Default is `"You are a code reviewer."` — generic and unhelpful. Replace it with a one-liner about your project:
+
+```yaml
+context-intro: "You are a code reviewer for Torii's app-usage service — a Python/TypeScript monorepo that fetches, processes, aggregates, and stores SaaS app usage events."
+```
+
+Good context intros mention: what the project does, the tech stack, and any important architectural context. Keep it to 1-2 sentences.
+
+### 2. `critical-rules` — Rules that must never be violated
+
+These are injected as BLOCKER-level rules. Claude will flag violations at the highest severity. Use these for your team's non-negotiable conventions:
+
+```yaml
+critical-rules: |
+  1. All database queries MUST use parameterized statements
+  2. All API endpoints MUST check authentication
+  3. No secrets or credentials in code or logs
+  4. Always yarn, never npm — flag package-lock.json as a BLOCKER
+  5. All new functions MUST have tests
+```
+
+Keep the list focused — 3-7 rules is ideal. Too many dilutes their impact.
+
+### 3. `review-guide-path` — Full review guide for deep customization
+
+For teams that want detailed review standards, create a `.github/claude-review-guide.md` file in your repo. This is a markdown file that gets injected into the review prompt — Claude reads it as instructions.
+
+```yaml
+review-guide-path: .github/claude-review-guide.md
+```
+
+A good review guide covers:
+- **Security checklist** — org-specific security rules (tenant isolation, auth patterns)
+- **Testing expectations** — coverage targets, what must be tested
+- **Code style** — conventions that linters don't catch
+- **Architecture rules** — module boundaries, import conventions, naming patterns
+- **Domain-specific patterns** — your project's specific patterns and anti-patterns
+
+See the [example review guide](examples/claude-review-guide.md) for a template based on production usage.
+
+**When to use what:**
+- Small project, few conventions → `context-intro` + `critical-rules` is enough
+- Established codebase with detailed standards → add a `review-guide-path`
+- Both can be used together — critical rules are always BLOCKER severity, the guide provides broader context
+
 ## Features
 
 - **3 trigger types** — Label (`claude-review`), `@claude` in PR comments, `@claude` in inline review comments

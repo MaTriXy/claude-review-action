@@ -268,9 +268,11 @@ If you have an existing 500+ line Claude review workflow:
 
 ## Known Limitations
 
-1. **Review dismissal is best-effort** — Dismissal commands are injected into Claude's prompt, not a separate step. If Claude's API call fails mid-review, old reviews may persist.
+1. **Custom trigger phrases don't get the 👀 reaction** — When you use `@claude`, the Claude GitHub App reacts with 👀 to acknowledge the mention. If you customize `trigger-phrase` to something else (e.g., `@claude-review`), the review still runs but the Claude App won't add the 👀 reaction since it only recognizes mentions of its own handle. This is cosmetic — reviews work identically either way.
 
-2. **Failure type detection** — The action reliably detects `max_turns` failures. API error subtypes (401 vs 429) may not be distinguishable and fall back to a generic message.
+2. **Review dismissal is best-effort** — Dismissal commands are injected into Claude's prompt, not a separate step. If Claude's API call fails mid-review, old reviews may persist.
+
+3. **Failure type detection** — The action reliably detects `max_turns` failures. API error subtypes (401 vs 429) may not be distinguishable and fall back to a generic message.
 
 
 ## License

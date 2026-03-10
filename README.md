@@ -256,16 +256,6 @@ When Claude detects a previous review on the same PR:
 
 Set `include-previous-review: false` to disable reconciliation (always full review, no history).
 
-## Migration from Standalone Workflow
-
-If you have an existing 500+ line Claude review workflow:
-
-1. Replace the entire workflow file with the [standard example](examples/standard.yml)
-2. Keep your existing `.github/claude-review-guide.md` unchanged
-3. Move critical rules from bash heredoc to `critical-rules:` input
-4. Test on one PR — verify review quality matches
-5. Delete the old workflow steps
-
 ## Known Limitations
 
 1. **Custom trigger phrases don't get the 👀 reaction** — When you use `@claude`, the Claude GitHub App reacts with 👀 to acknowledge the mention. If you customize `trigger-phrase` to something else (e.g., `@claude-review`), the review still runs but the Claude App won't add the 👀 reaction since it only recognizes mentions of its own handle. This is cosmetic — reviews work identically either way.

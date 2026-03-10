@@ -123,21 +123,6 @@ runs:
           echo "::error::See https://github.com/toriihq/claude-review-action#setup for setup instructions."
           exit 1
         fi
-        # Validate the key works with a lightweight API call
-        HTTP_STATUS=$(curl -s -o /tmp/anthropic-validate.json -w "%{http_code}" \
-          https://api.anthropic.com/v1/messages \
-          -H "x-api-key: $ANTHROPIC_API_KEY" \
-          -H "anthropic-version: 2023-06-01" \
-          -H "content-type: application/json" \
-          -d '{"model":"claude-haiku-4-5-20251001","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}')
-        if [ "$HTTP_STATUS" = "401" ]; then
-          echo "::error::ANTHROPIC_API_KEY is invalid (HTTP 401). Check that the secret value is correct."
-          echo "::error::See https://github.com/toriihq/claude-review-action#setup for setup instructions."
-          exit 1
-        elif [ "$HTTP_STATUS" = "403" ]; then
-          echo "::error::ANTHROPIC_API_KEY is not authorized (HTTP 403). The key may be disabled or lack permissions."
-          exit 1
-        fi
         case "$REVIEW_AUTHORITY" in
           comment-only|request-changes|full) ;;
           *)
@@ -158,6 +143,27 @@ runs:
         GITHUB_REPOSITORY: ${{ github.repository }}
         EVENT_NAME: ${{ github.event_name }}
         EVENT_JSON: ${{ toJSON(github.event) }}
+
+    - name: Validate API key
+      shell: bash
+      run: |
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+          https://api.anthropic.com/v1/messages \
+          -H "x-api-key: $ANTHROPIC_API_KEY" \
+          -H "anthropic-version: 2023-06-01" \
+          -H "content-type: application/json" \
+          -d '{"model":"claude-haiku-4-5-20251001","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}')
+        if [ "$HTTP_STATUS" = "401" ] || [ "$HTTP_STATUS" = "403" ]; then
+          MSG="❌ **Claude Review failed — invalid API key** (HTTP $HTTP_STATUS).\n\nThe \`ANTHROPIC_API_KEY\` secret is set but the key is invalid or unauthorized. Check the secret value in your repo or org settings.\n\nSee the [setup guide](https://github.com/toriihq/claude-review-action#setup)."
+          gh api "repos/$REPO/issues/$PR_NUMBER/comments" --method POST -f body="$(echo -e "$MSG")" || true
+          echo "::error::ANTHROPIC_API_KEY is invalid (HTTP $HTTP_STATUS). Check that the secret value is correct."
+          exit 1
+        fi
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ steps.resolve-pr.outputs.pr_number }}
 
     - name: Checkout PR
       uses: actions/checkout@v4

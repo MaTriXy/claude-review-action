@@ -19,7 +19,20 @@ if [ "$FILE_COUNT" -gt "$MAX_FILES" ]; then
 fi
 
 # --- Capture diff ---
-gh pr diff "$PR_NUMBER" --repo "$REPO" > /tmp/pr-diff.txt
+if ! gh pr diff "$PR_NUMBER" --repo "$REPO" > /tmp/pr-diff.txt 2>/tmp/diff-error.txt; then
+  DIFF_ERROR=$(cat /tmp/diff-error.txt)
+  if echo "$DIFF_ERROR" | grep -qi "too_large\|exceeded.*maximum\|406"; then
+    gh pr comment "$PR_NUMBER" --repo "$REPO" \
+      --body "⚠️ **Claude review skipped** — PR diff exceeds GitHub's 20,000-line API limit. Please split into smaller PRs or review manually." || true
+    echo "::error::Review skipped — PR diff too large for GitHub API (HTTP 406)"
+  else
+    gh pr comment "$PR_NUMBER" --repo "$REPO" \
+      --body "⚠️ **Claude review failed** — could not fetch PR diff. Error: \`${DIFF_ERROR}\`" || true
+    echo "::error::Failed to fetch PR diff: $DIFF_ERROR"
+  fi
+  echo "skipped=true" >> "$GITHUB_OUTPUT"
+  exit 0
+fi
 
 # Track whether truncation occurs
 TRUNCATED=false
